@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b3a7e"><link rel="manifest" href="manifest.json">
+<title>SAHABAT</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 system-ui,sans-serif;background:linear-gradient(#cdeef7,#e8f7fb);color:#0b2a5b;min-height:100vh}
+.c{max-width:480px;margin:0 auto;padding:calc(20px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px}
+h1{margin:16px 0 0;font-size:2.6rem;color:#0b3a7e}
+h2{margin:4px 0;padding:10px;border-radius:26px;background:#0b0b8a;color:#fff;text-align:center;font-size:1.3rem;font-weight:500}
+p{margin:0}a{color:#0b3a7e;font-weight:600;cursor:pointer}
+label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.9rem}
+input,select,textarea{font:inherit;padding:11px;border:1px solid #8fc4d3;border-radius:10px;background:#fff;color:inherit}
+textarea{min-height:84px}
+button,.m{font:inherit;font-weight:600;padding:14px;border:3px solid #4de3c8;border-radius:14px;background:#fff;color:#0b2a5b;text-align:center;text-decoration:none}
+button.s{border-color:#8fc4d3}button:disabled{opacity:.5}
+.k{flex-direction:row;align-items:center;gap:8px;font-weight:400;font-size:1rem}
+#sub{display:flex;flex-direction:column;gap:8px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.top{display:flex;justify-content:space-between;font-size:.9rem}
+.r{padding:8px;border-radius:8px;text-align:center;color:#fff;font-weight:700}.rh{background:#c62828}.rm{background:#b26a00}.rl{background:#2e7d32}
+.tm{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid #8fc4d3;border-radius:12px}
+:focus-visible{outline:3px solid #0b3a7e;outline-offset:2px}
+</style></head><body><div id="app"></div><script>
+const API="https://script.google.com/macros/s/AKfycbyiUoZpxq5Z6b8ZAjxcywsMG8hcI40y60AjK2Qar-PsIJqKjcMQ16eUaPF7b1bDvYxW7w/exec";
+const TRACKER="https://hsepriamanaya.github.io/hazard-tracker-dp/";
+const $=s=>document.querySelector(s),S=JSON.parse(localStorage.sahabat||"{}");
+const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
+const msg=t=>{const e=$("#msg");if(e)e.textContent=t};
+const post=b=>fetch(API,{method:"POST",body:JSON.stringify(b)}).then(r=>r.json());
+const Q=()=>JSON.parse(localStorage.antrian||"[]"),setQ=q=>localStorage.antrian=JSON.stringify(q);
+const save=()=>localStorage.sahabat=JSON.stringify(S);
+const p2=n=>String(n).padStart(2,"0");
+const opt=(a,t="Pilih")=>`<option value="">${t}</option>`+a.map(x=>`<option>${esc(x)}</option>`).join("");
+
+function login(){$("#app").innerHTML=`<div class=c><h1>SAHABAT</h1><p>Sistem Akuntabilitas Hazard dan Inspeksi Berkelanjutan Terpadu</p>
+<label>NIK<input id=nik autocomplete=username placeholder="002.24.01287"></label>
+<label>PIN<input id=pin type=password inputmode=numeric maxlength=6 autocomplete=current-password placeholder="4-6 angka"></label>
+<button onclick="auth('sahabatLogin')">Masuk</button><button class=s onclick="auth('sahabatDaftar')">Daftar akun baru</button><p id=msg></p></div>`}
+
+async function auth(a){msg("Memproses...");try{
+ const r=await post({action:a,nik:$("#nik").value,pin:$("#pin").value});
+ if(!r.success)return msg(r.message);
+ if(a=="sahabatDaftar")return msg("Pendaftaran terkirim. Tunggu persetujuan admin HSE.");
+ S.token=r.token;S.profil=r.profil;
+ const m=await post({action:"sahabatMasters",token:S.token});S.masters=m.data;S.mt=Date.now();save();menu();kirimAntrian();
+}catch(e){msg("Tidak ada koneksi. Coba lagi.")}}
+
+function menu(){$("#app").innerHTML=`<div class=c><div class=top><span>${esc(S.profil.nama)}</span><a onclick=keluar()>Keluar</a></div>
+<h2>Menu SAP</h2><button class=m onclick=hazard()>Hazard report</button>
+<button class=m onclick="form('safetytalk')">Safety talk/P5M</button><button class=m onclick="form('inspeksi')">Inspeksi</button><button class=m onclick="form('observasi')">Observasi</button>
+<a class=m href="${TRACKER}" target=_blank rel=noopener>Follow up</a><p id=q></p></div>`;
+ Date.now()-(S.mt||0)>36e5&&post({action:"sahabatMasters",token:S.token}).then(m=>{if(m.success){S.masters=m.data;S.mt=Date.now();save()}}).catch(()=>{})}
+function keluar(){localStorage.removeItem("sahabat");Object.keys(S).forEach(k=>delete S[k]);login()}
+
+function hazard(){const M=S.masters,d=new Date();$("#app").innerHTML=`<form class=c onsubmit="kirim(event)">
+<a onclick=menu()>‹ Kembali</a><h2>Hazard report</h2>
+<label>Tanggal kejadian<input type=date id=tgl required value="${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}"></label>
+<label>Waktu kejadian<input type=time id=jam required value="${p2(d.getHours())}:${p2(d.getMinutes())}"></label>
+<label>Area kerja<select id=area required>${opt(M.area)}</select></label>
+<label>Detail lokasi kejadian<input id=lok required></label>
+<label>Kategori bahaya<select id=kat required onchange=kat()>${opt(["TINDAKAN TIDAK AMAN","KONDISI TIDAK AMAN"])}</select></label>
+<div id=sub></div>
+<label>Bahaya yang dilaporkan<textarea id=bhy required></textarea></label>
+<div class=g><label>Probability (1-5)<select id=pr onchange=rsk() required>${opt([1,2,3,4,5])}</select></label>
+<label>Severity (1-5)<select id=sv onchange=rsk() required>${opt([1,2,3,4,5])}</select></label></div><div id=rk></div>
+<label>Tindakan perbaikan yang sudah dilakukan<textarea id=tdk required></textarea></label>
+<label>Perusahaan yang dilaporkan<select id=prs required>${opt(M.perusahaan)}</select></label>
+<label>Departemen PIC<select id=dpc required>${opt(M.dept)}</select></label>
+<label>Foto dokumentasi (maksimal 3)<input type=file id=ft accept="image/*" multiple required></label>
+<button class=go>Kirim laporan</button><p id=msg></p></form>`}
+function kat(){const v=$("#kat").value,M=S.masters,a=v[0]=="T"?M.tta:M.kta;
+ $("#sub").innerHTML=v?a.map(x=>`<label class=k><input type=checkbox value="${esc(x)}">${esc(x)}</label>`).join("")+`<input id=oth placeholder="Lainnya (opsional)">`:""}
+function rsk(){const n=$("#pr").value*$("#sv").value,l=n>=15?"HIGH":n>=5?"MEDIUM":"LOW";
+ $("#rk").innerHTML=n?`<div class="r r${l[1].toLowerCase()}">Nilai risiko ${n}: ${l}</div>`:""}
+const kecil=f=>new Promise(ok=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1280/Math.max(i.width,i.height)),c=document.createElement("canvas");
+ c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",.7))};i.src=URL.createObjectURL(f)});
+
+async function kirim(e){e.preventDefault();const b=$("button.go");b.disabled=true;msg("Memproses foto...");
+try{const cek=[...document.querySelectorAll("#sub input:checked")].map(x=>x.value),o=$("#oth")?.value.trim(),tta=$("#kat").value[0]=="T";
+ if(o)cek.push(o);
+ setQ([...Q(),{id:String(Date.now())+(10+Math.floor(Math.random()*90)),fotos:await Promise.all([...$("#ft").files].slice(0,3).map(kecil)),
+  f:{tanggal:$("#tgl").value,jam:$("#jam").value,area:$("#area").value,lokasi:$("#lok").value,kategori:$("#kat").value,kta:tta?[]:cek,tta:tta?cek:[],
+  bahaya:$("#bhy").value,prob:$("#pr").value,sev:$("#sv").value,tindakan:$("#tdk").value,perusahaan:$("#prs").value,deptPic:$("#dpc").value}}]);
+ if(await kirimAntrian()===false)return;
+ menu();$("#q").textContent=Q().length?"Tersimpan di HP. Akan dikirim otomatis saat ada sinyal.":"Laporan terkirim."
+}catch(x){msg("Gagal: "+x.message);b.disabled=false}}
+
+const FORMS={
+inspeksi:{t:"Inspeksi",f:[{k:"judul",l:"Judul inspeksi"},{k:"tanggal",l:"Tanggal inspeksi",t:"date"},{k:"area",l:"Area kerja",t:"area"},{k:"lokasi",l:"Lokasi inspeksi"},{k:"temuan",t:"temuan"},{k:"foto",l:"Dokumentasi pelaksanaan inspeksi",t:"file"},{k:"foto2",l:"Bukti checklist inspeksi",t:"file",o:1}]},
+observasi:{t:"Observasi",f:[{k:"tanggal",l:"Tanggal observasi",t:"date"},{k:"area",l:"Area kerja",t:"area"},{k:"lokasi",l:"Detail lokasi observasi"},{k:"nama",l:"Nama karyawan yang diobservasi",t:"emp"},{k:"jabatan",l:"Jabatan yang diobservasi"},{k:"deskripsi",l:"Deskripsi temuan observasi",t:"ta"},{k:"tindakan",l:"Tindakan perbaikan",t:"ta",o:1},{k:"feedback",l:"Feedback",t:"ta",o:1},{k:"foto",l:"Dokumentasi pelaksanaan observasi",t:"file"}]},
+safetytalk:{t:"Safety talk/P5M",f:[{k:"tanggal",l:"Tanggal pelaksanaan",t:"date"},{k:"jam",l:"Waktu pelaksanaan",t:"time"},{k:"area",l:"Area kerja",t:"area"},{k:"lokasi",l:"Detail lokasi"},{k:"pemateri",l:"Pemateri/fasilitator"},{k:"materi",l:"Materi safety talk",t:"ta"},{k:"foto",l:"Dokumentasi pelaksanaan",t:"file"}]}};
+const newId=()=>String(Date.now())+(10+Math.floor(Math.random()*90));
+function fld(x){const t=x.t,i=`id=f_${x.k}${x.o?"":" required"}`,d=new Date();
+ if(t=="temuan")return `<div id=tm></div><button type=button class=s onclick=tmb()>+ Tambah temuan</button>`;
+ const v=t=="date"?`value=${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`:t=="time"?`value=${p2(d.getHours())}:${p2(d.getMinutes())}`:"";
+ const c=t=="area"?`<select ${i}>${opt(S.masters.area)}</select>`:t=="ta"?`<textarea ${i}></textarea>`:t=="file"?`<input type=file ${i} accept="image/*" multiple>`:t=="emp"?`<input ${i} list=dl oninput=emp(this)>`:`<input ${i} type=${t||"text"} ${v}>`;
+ return `<label>${x.l}${c}</label>`}
+function emp(el){const e=(S.masters.emp||[]).find(x=>x[0]==el.value);if(e)$("#f_jabatan").value=e[1]}
+function tmb(){if($("#tm").children.length>=9)return;const d=document.createElement("div");d.className="tm";
+ d.innerHTML=`<label>Deskripsi temuan<textarea class=d required></textarea></label><label>Tindakan yang dilakukan<textarea class=t required></textarea></label><label>Person in charge (PIC)<input class=p required></label><label>Departemen PIC<select class=dp required>${opt(S.masters.dept)}</select></label><label>Status temuan<select class=s2 required>${opt(["Open","Progress","Closed"])}</select></label>${$("#tm").children.length?`<a onclick="this.parentNode.remove()">Hapus temuan</a>`:""}`;$("#tm").append(d)}
+function form(n){const F=FORMS[n];$("#app").innerHTML=`<form class=c onsubmit="kirimF(event,'${n}')"><a onclick=menu()>‹ Kembali</a><h2>${F.t}</h2>${F.f.map(fld).join("")}${n=="observasi"?`<datalist id=dl>${(S.masters.emp||[]).map(e=>`<option value="${esc(e[0])}">`).join("")}</datalist>`:""}<button class=go>Kirim laporan</button><p id=msg></p></form>`;if(n=="inspeksi")tmb()}
+async function kirimF(e,n){e.preventDefault();const b=$("button.go");b.disabled=true;msg("Memproses foto...");
+try{const f={},fl=k=>Promise.all([...($("#f_"+k)?.files||[])].slice(0,3).map(kecil));
+ FORMS[n].f.forEach(x=>{if(x.t=="temuan")f.temuan=[...document.querySelectorAll(".tm")].map(m=>({d:m.querySelector(".d").value,t:m.querySelector(".t").value,p:m.querySelector(".p").value,dp:m.querySelector(".dp").value,s:m.querySelector(".s2").value}));else if(x.t!="file")f[x.k]=$("#f_"+x.k).value});
+ setQ([...Q(),{action:"sahabatForm",form:n,id:newId(),fotos:await fl("foto"),fotos2:await fl("foto2"),f}]);
+ if(await kirimAntrian()===false)return;
+ menu();$("#q").textContent=Q().length?"Tersimpan di HP. Akan dikirim otomatis saat ada sinyal.":"Laporan terkirim."
+}catch(x){msg("Gagal: "+x.message);b.disabled=false}}
+
+async function kirimAntrian(){for(const j of Q()){try{const r=await post({action:"sahabatHazard",token:S.token,...j});
+ if(r.auth===false){login();return false}
+ if(!r.success)break;setQ(Q().filter(x=>x.id!=j.id))}catch(e){break}}return true}
+addEventListener("online",()=>S.token&&kirimAntrian());
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
+S.token&&S.profil&&S.masters?(menu(),kirimAntrian()):login();
+</script></body></html>
